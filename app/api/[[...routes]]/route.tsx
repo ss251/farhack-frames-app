@@ -6,7 +6,6 @@ import { neynar } from 'frog/hubs'
 import { Lum0x } from 'lum0x-sdk'
 import { devtools } from 'frog/dev'
 import { serveStatic } from 'frog/serve-static'
-import { NextRequest } from 'next/server'
 
 Lum0x.init(process.env.LUM0X_API_KEY as string)
 
@@ -295,5 +294,5 @@ if (process.env.NODE_ENV === 'development') {
   devtools(app, { serveStatic })
 }
 
-export const GET = (req: NextRequest, ctx: any) => handle(app)(req, ctx)
-export const POST = (req: NextRequest, ctx: any) => handle(app)(req, ctx)
+export const GET = handle(app)
+export const POST = handle(app)
