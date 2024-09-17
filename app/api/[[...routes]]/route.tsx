@@ -6,10 +6,11 @@ import { neynar } from 'frog/hubs'
 import { Lum0x } from 'lum0x-sdk'
 import { devtools } from 'frog/dev'
 import { serveStatic } from 'frog/serve-static'
+import { NextRequest } from 'next/server'
 
 Lum0x.init(process.env.LUM0X_API_KEY as string)
 
-export const app = new Frog({
+const app = new Frog({
   assetsPath: '/',
   basePath: '/api',
   browserLocation: '/:path',
@@ -91,7 +92,7 @@ app.frame('/', (c) => {
       <TextInput placeholder="Enter Farcaster ID" />,
       <Button action="/user_info">User Info</Button>,
       <Button action="/cast_analytics">Cast Analytics</Button>,
-      <Button action="/engagement_stats">Engagement Stats</Button>,
+      // <Button action="/engagement_stats">Engagement Stats</Button>,
     ],
   })
 })
@@ -294,5 +295,5 @@ if (process.env.NODE_ENV === 'development') {
   devtools(app, { serveStatic })
 }
 
-export const GET = handle(app)
-export const POST = handle(app)
+export const GET = (req: NextRequest, ctx: any) => handle(app)(req, ctx)
+export const POST = (req: NextRequest, ctx: any) => handle(app)(req, ctx)
