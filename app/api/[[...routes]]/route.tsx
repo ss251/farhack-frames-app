@@ -123,11 +123,12 @@ app.frame('/', (c) => {
       <TextInput placeholder="Enter Farcaster ID" />,
       <Button action="/user_info">User Info</Button>,
       <Button action="/cast_analytics">Cast Analytics</Button>,
+      <Button action="/moxie_stat">Moxie Stats</Button>,
     ],
   });
 });
 
-app.frame('/user_info', async (c) => {
+app.frame('/user_info', (c) => {
   const { deriveState } = c;
   const state = deriveState((previousState) => {
     if (c.inputText) {
@@ -139,26 +140,56 @@ app.frame('/user_info', async (c) => {
 
   if (!fid) {
     return c.res({
-      image: (
-        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
-          <VStack gap="16">
-            <Heading size="48" color="red500">Error: No FID provided</Heading>
-          </VStack>
-        </Box>
-      ),
+      image: '/user_info/user_image', // Updated image URL
       intents: [<Button action="/">Back to Main</Button>],
     });
   }
 
+  // Store the fid in the state for the image handler to access
+  return c.res({
+    image: '/user_info/user_image', // Updated image URL
+    intents: [
+      <Button action="/">Back to Main</Button>,
+      <Button action="/cast_analytics">View Cast Analytics</Button>,
+      <Button action="/moxie_stat">Moxie Stats</Button>,
+    ],
+  });
+});
+
+app.image('/user_info/user_image', async (c) => {
+  const state = c.previousState as State;
+  const fid = state?.fid;
+  console.log('Image Handler - User Info:', { fid });
+
+  if (!fid) {
+    return c.res({
+      image: (
+        <Box
+          grow
+          alignHorizontal="center"
+          backgroundColor="background"
+          padding="32"
+        >
+          <VStack gap="16">
+            <Heading size="48" color="red500">
+              Error: No FID provided
+            </Heading>
+          </VStack>
+        </Box>
+      ),
+    });
+  }
+
   try {
+    // Get user profile
     const res = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    console.log('User Info API response:', JSON.stringify(res, null, 2));
     const user = res.users[0] as User | undefined;
 
     if (!user) {
       throw new Error('User not found');
     }
 
+    // Render the user info image
     return c.res({
       image: (
         <Box
@@ -194,23 +225,30 @@ app.frame('/user_info', async (c) => {
           </VStack>
         </Box>
       ),
-      intents: [
-        <Button action="/">Back to Main</Button>,
-        <Button action="/cast_analytics">View Cast Analytics</Button>,
-      ],
+      headers: {
+        'Cache-Control': 'max-age=0',
+      },
     });
   } catch (error) {
-    console.error('Error fetching user data:', error);
+    console.error('Error in Image Handler:', error);
     return c.res({
       image: (
-        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+        <Box
+          grow
+          alignHorizontal="center"
+          backgroundColor="background"
+          padding="32"
+        >
           <VStack gap="16">
-            <Heading size="32" color="red500">Error fetching user data</Heading>
-            <Text size="24" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+            <Heading size="32" color="red500">
+              Error fetching user data
+            </Heading>
+            <Text size="24" color="red">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </Text>
           </VStack>
         </Box>
       ),
-      intents: [<Button action="/">Back to Main</Button>],
     });
   }
 });
@@ -243,7 +281,6 @@ app.frame('/cast_analytics', async (c) => {
 });
 
 app.image('/cast_analytics/analytics_image', async (c) => {
-  // Updated handler path
   const state = c.previousState as State;
   const fid = state?.fid;
   console.log('Image Handler - Cast Analytics:', { fid });
@@ -270,6 +307,7 @@ app.image('/cast_analytics/analytics_image', async (c) => {
   try {
     // Get user profile
     const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+    console.log('User Info API response:', JSON.stringify(userRes, null, 2));
     const user = userRes.users[0] as User | undefined;
 
     if (!user) {
@@ -279,21 +317,17 @@ app.image('/cast_analytics/analytics_image', async (c) => {
     // Get casts for the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const castsRes = await Lum0x.farcasterCast.getCastsByFid({
-      fid: Number(fid),
-      limit: 100,
-    });
+    
+    const castsRes = await Lum0x.farcasterCast.getCastsByFid({ fid: Number(fid), limit: 100 });
+    console.log('Casts response:', JSON.stringify(castsRes, null, 2));
 
     if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
       throw new Error('Invalid casts data received');
     }
 
-    const casts = castsRes.result.casts.filter(
-      (cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo
-    );
+    const casts = castsRes.result.casts.filter((cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo);
 
-    // Calculate analytics
+    // Calculate analytics with null checks
     const totalCasts = casts.length;
     const totalLikes = casts.reduce(
       (sum: number, cast: Cast) => sum + (cast.reactions?.count || 0),
@@ -308,16 +342,16 @@ app.image('/cast_analytics/analytics_image', async (c) => {
       0
     );
 
+    const totalInteractions = totalLikes + totalRecasts + totalReplies;
+
     const engagementRate =
-      totalCasts > 0 && user.follower_count > 0
-        ? (
-            ((totalLikes + totalRecasts + totalReplies) /
-              (totalCasts * user.follower_count)) *
-            100
-          ).toFixed(2)
+      user.follower_count > 0
+        ? ((totalInteractions / user.follower_count) * 100).toFixed(2)
         : '0.00';
 
-    // Return the image component with enhanced aesthetics
+    // Get follower count
+    const followerCount = user.follower_count;
+
     return c.res({
       image: (
         <Box
@@ -331,8 +365,13 @@ app.image('/cast_analytics/analytics_image', async (c) => {
             <Heading size="32">
               Cast Analytics for @{user.username}
             </Heading>
-            <Divider />
+            <Divider color="gray700" />
             <HStack gap="32" alignHorizontal="center">
+              <Box alignItems="center">
+                <Icon name="users" size="24" color="purple500" />
+                <Text size="24">{followerCount}</Text>
+                <Text size="20" color="text200">Followers</Text>
+              </Box>
               <Box alignItems="center">
                 <Icon name="pencil" size="24" color="teal500" />
                 <Text size="24">{totalCasts}</Text>
@@ -341,7 +380,7 @@ app.image('/cast_analytics/analytics_image', async (c) => {
               <Box alignItems="center">
                 <Icon name="heart" size="24" color="red500" />
                 <Text size="24">{totalLikes}</Text>
-                <Text size="20" color="text200">Likes</Text>
+                <Text size="20" color="text200">Reactions</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="refresh-cw" size="24" color="teal500" />
@@ -349,12 +388,12 @@ app.image('/cast_analytics/analytics_image', async (c) => {
                 <Text size="20" color="text200">Recasts</Text>
               </Box>
               <Box alignItems="center">
-                <Icon name="message-square" size="24" color="teal500" />
+                <Icon name="message-square" size="24" color="blue600" />
                 <Text size="24">{totalReplies}</Text>
                 <Text size="20" color="text200">Replies</Text>
               </Box>
             </HStack>
-            <Divider />
+            <Divider color="gray700" />
             <Text size="24" color="text200">
               Engagement Rate: {engagementRate}%
             </Text>
@@ -362,11 +401,125 @@ app.image('/cast_analytics/analytics_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'max-age=0', // Optional: Prevent caching
+        'Cache-Control': 'max-age=0',
       },
     });
   } catch (error) {
-    console.error('Error in Image Handler:', error);
+    console.error('Error fetching cast data:', error);
+    return c.res({
+      image: (
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48" color="red500">Error fetching cast data</Heading>
+            <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+          </VStack>
+        </Box>
+      ),
+    });
+  }
+});
+
+app.frame('/moxie_stat', (c) => {
+  const { deriveState } = c;
+  const state = deriveState((previousState) => {
+    if (c.inputText) {
+      previousState.fid = c.inputText;
+    }
+  });
+  const fid = state.fid;
+  console.log('Moxie Stat frame:', { fid });
+
+  if (!fid) {
+    return c.res({
+      image: '/moxie_stat/moxie_image',
+      intents: [<Button action="/">Back to Main</Button>],
+    });
+  }
+
+  return c.res({
+    image: '/moxie_stat/moxie_image',
+    intents: [
+      <Button action="/">Back to Main</Button>,
+      <Button action="/user_info">View User Info</Button>,
+    ],
+  });
+});
+
+app.image('/moxie_stat/moxie_image', async (c) => {
+  const state = c.previousState as State;
+  const fid = state?.fid;
+  console.log('Image Handler - Moxie Stat:', { fid });
+  const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+  const user = userRes.users[0];
+
+  if (!fid) {
+    return c.res({
+      image: (
+        <Box
+          grow
+          alignHorizontal="center"
+          backgroundColor="background"
+          padding="32"
+        >
+          <VStack gap="16">
+            <Heading size="48" color="red500">
+              Error: No FID provided
+            </Heading>
+          </VStack>
+        </Box>
+      ),
+    });
+  }
+
+  try {
+    // Fetch Moxie earning stats
+    const res = await Lum0x.farcasterMoxie.getEarningStat({
+      entity_type: 'USER',
+      entity_id: fid,
+      timeframe: 'LIFETIME',
+    });
+
+    const moxieStatArray = res.data?.FarcasterMoxieEarningStats?.FarcasterMoxieEarningStat;
+
+    if (!moxieStatArray || !Array.isArray(moxieStatArray) || moxieStatArray.length === 0) {
+      throw new Error('Moxie stats not found');
+    }
+
+    const moxieStat = moxieStatArray[0];
+
+    console.log('Moxie Stats API response:', JSON.stringify(moxieStat, null, 2));
+
+    // Render the Moxie stats image
+    return c.res({
+      image: (
+        <Box
+          grow
+          alignHorizontal="center"
+          alignVertical="center"
+          backgroundColor="background"
+          padding="32"
+        >
+          <VStack gap="16" alignHorizontal="center">
+            <Heading size="32">
+              Moxie Stats for @{user.username}
+            </Heading>
+            <Divider />
+            <Text size="24">
+              Total Moxie Earned: {moxieStat.allEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </Text>
+            <Text size="24">Total Cast Earnings: {moxieStat.castEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+            <Text size="24">Frame Dev Earnings: {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+            <Text size="24">Other Earnings: {moxieStat.otherEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+            <Text size="24">Timeframe: {moxieStat.timeframe}</Text>
+          </VStack>
+        </Box>
+      ),
+      headers: {
+        'Cache-Control': 'max-age=0',
+      },
+    });
+  } catch (error) {
+    console.error('Error in Moxie Image Handler:', error);
     return c.res({
       image: (
         <Box
@@ -377,7 +530,7 @@ app.image('/cast_analytics/analytics_image', async (c) => {
         >
           <VStack gap="16">
             <Heading size="32" color="red500">
-              Error fetching cast data
+              Error fetching Moxie stats
             </Heading>
             <Text size="24" color="red">
               {error instanceof Error ? error.message : 'Unknown error'}
@@ -390,8 +543,8 @@ app.image('/cast_analytics/analytics_image', async (c) => {
 });
 
 if (process.env.NODE_ENV === 'development') {
-  devtools(app, { serveStatic });
+  devtools(app, { serveStatic })
 }
 
-export const GET = handle(app);
-export const POST = handle(app);
+export const GET = handle(app)
+export const POST = handle(app)
