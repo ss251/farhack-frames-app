@@ -186,21 +186,19 @@ app.image('/user_info/user_image', async (c) => {
     // Fetch user profile and store fid and username
     const user = await fetchUserProfile(input, state);
 
-    // Fetch Nanograph user metrics
-    const nanographMetrics = await fetchNanographMetrics(state.username!);
-
-    // Find the top channel contribution (handle empty array)
     let topChannel = null;
-    if (nanographMetrics && nanographMetrics.length > 0) {
-      topChannel = nanographMetrics.reduce((prev: any, current: any) =>
-        Number(prev.contribution) > Number(current.contribution) ? prev : current
-      );
+    try {
+      const nanographMetrics = await fetchNanographMetrics(state.username!);
+      if (nanographMetrics.length > 0) {
+        topChannel = nanographMetrics.reduce((prev, current) =>
+          Number(prev.contribution) > Number(current.contribution) ? prev : current
+        );
+      }
+    } catch (nanographError) {
+      console.error('Error processing Nanograph metrics:', nanographError);
+      // Continue execution even if Nanograph data processing fails
     }
 
-    console.log('Top Channel:', topChannel);
-    console.log('Type of contribution:', typeof topChannel?.contribution);
-
-    // Render the user info image with top channel stats displayed side by side
     return c.res({
       image: (
         <Box
@@ -233,7 +231,7 @@ app.image('/user_info/user_image', async (c) => {
                 <Text size="16">{user.following_count}</Text>
                 <Text size="16" color="text200">Following</Text>
               </Box>
-              {topChannel ? (
+              {topChannel && (
                 <>
                   <Box alignItems="center">
                     <Icon name="award" size="24" color="amber500" />
@@ -248,12 +246,6 @@ app.image('/user_info/user_image', async (c) => {
                     <Text size="16" color="text200">Contribution</Text>
                   </Box>
                 </>
-              ) : (
-                <Box alignItems="center">
-                  <Icon name="info" size="24" color="gray500" />
-                  <Text size="16" color="text200">No Nanograph Data</Text>
-                  <Text size="16" color="text200">Available</Text>
-                </Box>
               )}
             </HStack>
           </VStack>
@@ -385,20 +377,16 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         ? ((totalInteractions / user.follower_count) * 100).toFixed(2)
         : '0.00';
 
-    // Fetch Nanograph user metrics
-    let nanographMetrics = [];
     let totalContribution = 0;
     try {
-      nanographMetrics = await fetchNanographMetrics(state.username!);
-      if (nanographMetrics && nanographMetrics.length > 0) {
-        totalContribution = nanographMetrics.reduce(
-          (sum: number, metric: any) => sum + (Number(metric.contribution) || 0),
-          0
-        );
-      }
+      const nanographMetrics = await fetchNanographMetrics(state.username!);
+      totalContribution = nanographMetrics.reduce(
+        (sum, metric) => sum + (Number(metric.contribution) || 0),
+        0
+      );
     } catch (nanographError) {
-      console.error('Error fetching Nanograph metrics:', nanographError);
-      // Continue execution even if Nanograph API fails
+      console.error('Error processing Nanograph metrics:', nanographError);
+      // Continue execution even if Nanograph data processing fails
     }
 
     // Render the combined analytics image with adjusted layout
@@ -455,18 +443,13 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Text size="24">{engagementRate}%</Text>
                 <Text size="20" color="text200">Engagement Rate</Text>
               </Box>
-              {totalContribution > 0 ? (
+              {totalContribution > 0 && (
                 <Box alignItems="center">
                   <Icon name="trending-up" size="24" color="amber500" />
                   <Text size="24">
                     {totalContribution.toLocaleString()}
                   </Text>
                   <Text size="20" color="text200">Total Contribution</Text>
-                </Box>
-              ) : (
-                <Box alignItems="center">
-                  <Icon name="info" size="24" color="gray500" />
-                  <Text size="20" color="text200">No Nanograph Data</Text>
                 </Box>
               )}
             </HStack>
@@ -691,17 +674,28 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
   console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
 
-  const response = await fetch(
-    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
-  );
+  try {
+    const response = await fetch(
+      `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+    );
 
-  if (!response.ok) {
-    console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
-    return []; // Return an empty array for non-OK responses
+    if (!response.ok) {
+      console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
+      return []; // Return an empty array for non-OK responses
+    }
+
+    const metrics = await response.json();
+    
+    if (!Array.isArray(metrics)) {
+      console.log(`Unexpected response format from Nanograph API for username: ${username}`);
+      return [];
+    }
+
+    return metrics;
+  } catch (error) {
+    console.error('Error fetching Nanograph metrics:', error);
+    return []; // Return an empty array for any errors
   }
-
-  const metrics = await response.json();
-  return metrics;
 }
 
 if (process.env.NODE_ENV === 'development') {
