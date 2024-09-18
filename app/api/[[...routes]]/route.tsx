@@ -187,19 +187,18 @@ app.image('/user_info/user_image', async (c) => {
     const user = await fetchUserProfile(input, state);
 
     // Fetch Nanograph user metrics
-    let nanographMetrics = [];
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
+
+    // Find the top channel contribution (handle empty array)
     let topChannel = null;
-    try {
-      nanographMetrics = await fetchNanographMetrics(state.username!);
-      if (nanographMetrics && nanographMetrics.length > 0) {
-        topChannel = nanographMetrics.reduce((prev: any, current: any) =>
-          Number(prev.contribution) > Number(current.contribution) ? prev : current
-        );
-      }
-    } catch (nanographError) {
-      console.error('Error fetching Nanograph metrics:', nanographError);
-      // Continue execution even if Nanograph API fails
+    if (nanographMetrics && nanographMetrics.length > 0) {
+      topChannel = nanographMetrics.reduce((prev: any, current: any) =>
+        Number(prev.contribution) > Number(current.contribution) ? prev : current
+      );
     }
+
+    console.log('Top Channel:', topChannel);
+    console.log('Type of contribution:', typeof topChannel?.contribution);
 
     // Render the user info image with top channel stats displayed side by side
     return c.res({
@@ -460,7 +459,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Box alignItems="center">
                   <Icon name="trending-up" size="24" color="amber500" />
                   <Text size="24">
-                    {Number(totalContribution).toLocaleString()}
+                    {totalContribution.toLocaleString()}
                   </Text>
                   <Text size="20" color="text200">Total Contribution</Text>
                 </Box>
