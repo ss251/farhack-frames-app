@@ -213,13 +213,13 @@ app.image('/user_info/user_image', async (c) => {
             <HStack gap="32" alignHorizontal="center">
               <Box alignItems="center">
                 <Icon name="user" size="24" color="teal500" />
-                <Text size="24">{user.follower_count}</Text>
-                <Text size="20" color="text200">Followers</Text>
+                <Text size="16">{user.follower_count}</Text>
+                <Text size="16" color="text200">Followers</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="user-check" size="24" color="teal500" />
-                <Text size="24">{user.following_count}</Text>
-                <Text size="20" color="text200">Following</Text>
+                <Text size="16">{user.following_count}</Text>
+                <Text size="16" color="text200">Following</Text>
               </Box>
             </HStack>
           </VStack>
