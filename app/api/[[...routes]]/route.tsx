@@ -189,7 +189,7 @@ app.image('/user_info/user_image', async (c) => {
     let topChannel = null;
     try {
       const nanographMetrics = await fetchNanographMetrics(state.username!);
-      if (nanographMetrics.length > 0) {
+      if (nanographMetrics && nanographMetrics.length > 0) {
         topChannel = nanographMetrics.reduce((prev, current) =>
           Number(prev.contribution) > Number(current.contribution) ? prev : current
         );
