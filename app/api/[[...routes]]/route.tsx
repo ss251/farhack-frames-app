@@ -187,18 +187,19 @@ app.image('/user_info/user_image', async (c) => {
     const user = await fetchUserProfile(input, state);
 
     // Fetch Nanograph user metrics
-    const nanographMetrics = await fetchNanographMetrics(state.username!);
-
-    // Find the top channel contribution (handle empty array)
+    let nanographMetrics = [];
     let topChannel = null;
-    if (nanographMetrics && nanographMetrics.length > 0) {
-      topChannel = nanographMetrics.reduce((prev: any, current: any) =>
-        Number(prev.contribution) > Number(current.contribution) ? prev : current
-      );
+    try {
+      nanographMetrics = await fetchNanographMetrics(state.username!);
+      if (nanographMetrics && nanographMetrics.length > 0) {
+        topChannel = nanographMetrics.reduce((prev: any, current: any) =>
+          Number(prev.contribution) > Number(current.contribution) ? prev : current
+        );
+      }
+    } catch (nanographError) {
+      console.error('Error fetching Nanograph metrics:', nanographError);
+      // Continue execution even if Nanograph API fails
     }
-
-    console.log('Top Channel:', topChannel);
-    console.log('Type of contribution:', typeof topChannel?.contribution);
 
     // Render the user info image with top channel stats displayed side by side
     return c.res({
@@ -386,15 +387,19 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         : '0.00';
 
     // Fetch Nanograph user metrics
-    const nanographMetrics = await fetchNanographMetrics(state.username!);
-
-    // Calculate total contribution from Nanograph metrics
+    let nanographMetrics = [];
     let totalContribution = 0;
-    if (nanographMetrics && nanographMetrics.length > 0) {
-      totalContribution = nanographMetrics.reduce(
-        (sum: number, metric: any) => sum + (metric.contribution || 0),
-        0
-      );
+    try {
+      nanographMetrics = await fetchNanographMetrics(state.username!);
+      if (nanographMetrics && nanographMetrics.length > 0) {
+        totalContribution = nanographMetrics.reduce(
+          (sum: number, metric: any) => sum + (Number(metric.contribution) || 0),
+          0
+        );
+      }
+    } catch (nanographError) {
+      console.error('Error fetching Nanograph metrics:', nanographError);
+      // Continue execution even if Nanograph API fails
     }
 
     // Render the combined analytics image with adjusted layout
@@ -475,12 +480,12 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching cast data:', error);
+    console.error('Error in cast stats image generation:', error);
     return c.res({
       image: (
         <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
           <VStack gap="16">
-            <Heading size="48" color="red500">Error fetching cast data</Heading>
+            <Heading size="48" color="red500">Error fetching data</Heading>
             <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
           </VStack>
         </Box>
@@ -687,24 +692,17 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
   console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
 
-  try {
-    const response = await fetch(
-      `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
-    );
+  const response = await fetch(
+    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+  );
 
-    if (!response.ok) {
-      // Handle non-OK responses, including 404
-      console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
-      return []; // Return an empty array
-    }
-
-    const metrics = await response.json();
-    return metrics;
-  } catch (error) {
-    console.error('Error fetching Nanograph metrics:', error);
-    // Return an empty array in case of network errors or other exceptions
-    return [];
+  if (!response.ok) {
+    console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
+    return []; // Return an empty array for non-OK responses
   }
+
+  const metrics = await response.json();
+  return metrics;
 }
 
 if (process.env.NODE_ENV === 'development') {
