@@ -187,16 +187,11 @@ app.image('/user_info/user_image', async (c) => {
     const user = await fetchUserProfile(input, state);
 
     let topChannel = null;
-    try {
-      const nanographMetrics = await fetchNanographMetrics(state.username!);
-      if (nanographMetrics && nanographMetrics.length > 0) {
-        topChannel = nanographMetrics.reduce((prev, current) =>
-          Number(prev.contribution) > Number(current.contribution) ? prev : current
-        );
-      }
-    } catch (nanographError) {
-      console.error('Error processing Nanograph metrics:', nanographError);
-      // Continue execution even if Nanograph data processing fails
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
+    if (nanographMetrics.length > 0) {
+      topChannel = nanographMetrics.reduce((prev, current) =>
+        Number(prev.contribution) > Number(current.contribution) ? prev : current
+      );
     }
 
     return c.res({
@@ -378,15 +373,12 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         : '0.00';
 
     let totalContribution = 0;
-    try {
-      const nanographMetrics = await fetchNanographMetrics(state.username!);
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
+    if (nanographMetrics.length > 0) {
       totalContribution = nanographMetrics.reduce(
         (sum, metric) => sum + (Number(metric.contribution) || 0),
         0
       );
-    } catch (nanographError) {
-      console.error('Error processing Nanograph metrics:', nanographError);
-      // Continue execution even if Nanograph data processing fails
     }
 
     // Render the combined analytics image with adjusted layout
@@ -675,14 +667,24 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
   const url = `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`;
   console.log('Fetching Nanograph metrics:', { username, url, currentDate });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+
+    clearTimeout(timeoutId);
 
     console.log('Nanograph API response:', {
       status: response.status,
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
     });
+
+    if (response.status === 404) {
+      console.log(`Nanograph API returned 404 for username: ${username}. Proceeding without Nanograph data.`);
+      return [];
+    }
 
     if (!response.ok) {
       console.error(`Nanograph API returned status ${response.status} for username: ${username}`);
@@ -707,7 +709,12 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
 
     return metrics;
   } catch (error) {
-    console.error('Error fetching Nanograph metrics:', error);
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`Nanograph API request timed out for username: ${username}`);
+    } else {
+      console.error('Error fetching Nanograph metrics:', error);
+    }
     return [];
   }
 }
