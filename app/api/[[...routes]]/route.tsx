@@ -7,6 +7,8 @@ import { Lum0x } from 'lum0x-sdk';
 import { devtools } from 'frog/dev';
 import { serveStatic } from 'frog/serve-static';
 import { createSystem } from 'frog/ui';
+import { format } from 'date-fns';
+import NodeCache from 'node-cache';
 
 Lum0x.init(process.env.LUM0X_API_KEY as string);
 
@@ -95,6 +97,26 @@ const app = new Frog<{ State: State }>({
   ui: { vars },
   title: 'Stat Frame',
 });
+
+// Initialize cache
+const nodeCache = new NodeCache({ stdTTL: 300 });
+
+// Cache utility function with TTL support
+async function getCachedData<T>(
+  key: string,
+  fetchFunction: () => Promise<T>,
+  ttl?: number // Optional TTL in seconds
+): Promise<T> {
+  const cachedData = nodeCache.get<T>(key);
+
+  if (cachedData) {
+    return cachedData;
+  } else {
+    const data = await fetchFunction();
+    nodeCache.set(key, data, ttl?.toString() || '300'); // Use TTL if provided
+    return data;
+  }
+}
 
 app.frame('/', (c) => {
   const { buttonValue, inputText } = c;
@@ -251,7 +273,7 @@ app.image('/user_info/user_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'max-age=0',
+        'Cache-Control': 'public, max-age=300',
       },
     });
   } catch (error) {
@@ -340,33 +362,34 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const castsRes = await Lum0x.farcasterCast.getCastsByFid({
-      fid: Number(fid),
-      limit: 100,
-    });
+    const casts = await getCachedData(`casts_fid_${fid}`, async () => {
+      const castsRes = await Lum0x.farcasterCast.getCastsByFid({
+        fid: Number(fid),
+        limit: 100,
+      });
 
-    if (
-      !castsRes.result ||
-      !Array.isArray(castsRes.result.casts)
-    ) {
-      throw new Error('Invalid casts data received');
-    }
+      if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
+        throw new Error('Invalid casts data received');
+      }
 
-    const casts = castsRes.result.casts.filter(
+      return castsRes.result.casts;
+    }, 300); // Cache for 5 minutes
+
+    const recentCasts = casts.filter(
       (cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo
     );
 
     // Calculate stats with null checks
-    const totalCasts = casts.length;
-    const totalLikes = casts.reduce(
+    const totalCasts = recentCasts.length;
+    const totalLikes = recentCasts.reduce(
       (sum: number, cast: Cast) => sum + (cast.reactions?.count || 0),
       0
     );
-    const totalRecasts = casts.reduce(
+    const totalRecasts = recentCasts.reduce(
       (sum: number, cast: Cast) => sum + (cast.recasts?.count || 0),
       0
     );
-    const totalReplies = casts.reduce(
+    const totalReplies = recentCasts.reduce(
       (sum: number, cast: Cast) => sum + (cast.replies?.count || 0),
       0
     );
@@ -454,7 +477,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'max-age=0',
+        'Cache-Control': 'public, max-age=300',
       },
     });
   } catch (error) {
@@ -611,7 +634,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'max-age=0',
+        'Cache-Control': 'public, max-age=300',
       },
     });
   } catch (error) {
@@ -641,16 +664,24 @@ app.image('/moxie_stat/moxie_image', async (c) => {
 // Utility function to fetch user profile and store fid and username
 async function fetchUserProfile(input: string, state: State): Promise<User> {
   let user: User | undefined = undefined;
+  let cacheKey = '';
+
   if (/^\d+$/.test(input)) {
     // Input is numeric, treat as fid
     const fid = input;
-    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    user = userRes.users[0];
+    cacheKey = `user_fid_${fid}`;
+    user = await getCachedData(cacheKey, async () => {
+      const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+      return userRes.users[0];
+    }, 300); // Cache for 5 minutes
   } else {
     // Input is non-numeric, treat as username
     const username = input;
-    const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
-    user = userRes.user;
+    cacheKey = `user_username_${username}`;
+    user = await getCachedData(cacheKey, async () => {
+      const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
+      return userRes.user;
+    }, 300); // Cache for 5 minutes
   }
 
   if (!user) {
@@ -666,23 +697,26 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
 
 // Utility function to fetch Nanograph metrics
 async function fetchNanographMetrics(username: string): Promise<any[]> {
-  // Get the current date in YYYY-MM-DD format
-  const currentDate = new Date().toISOString().split('T')[0];
-  console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
+  const currentDate = format(new Date(), 'yyyy-MM-dd');
+  const cacheKey = `nanograph_metrics_${username}_${currentDate}`;
 
-  const response = await fetch(
-    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
-  );
+  return getCachedData(cacheKey, async () => {
+    console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
 
-  const responseText = await response.text();
-  console.log('Nanograph API response:', responseText);
+    const response = await fetch(
+      `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+    );
 
-  if (!response.ok) {
-    throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
-  }
+    const responseText = await response.text();
+    console.log('Nanograph API response:', responseText);
 
-  const metrics = JSON.parse(responseText);
-  return metrics;
+    if (!response.ok) {
+      throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
+    }
+
+    const metrics = JSON.parse(responseText);
+    return metrics;
+  }, 300); // Cache for 5 minutes
 }
 
 if (process.env.NODE_ENV === 'development') {
