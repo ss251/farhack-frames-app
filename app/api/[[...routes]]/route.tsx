@@ -67,8 +67,11 @@ interface Cast {
   };
 }
 
+// Update the State type
 type State = {
-  fid: string;
+  fid?: string;
+  username?: string; // Add username to the state
+  input?: string; // Store the user input
 };
 
 const {
@@ -88,9 +91,7 @@ const app = new Frog<{ State: State }>({
   basePath: '/api',
   browserLocation: '/:path',
   hub: neynar({ apiKey: process.env.NEYNAR_API_KEY as string }),
-  initialState: {
-    fid: '',
-  },
+  initialState: {},
   ui: { vars },
   title: 'Stat Frame',
 });
@@ -110,17 +111,16 @@ app.frame('/', (c) => {
       >
         <VStack gap="16" alignHorizontal="center">
           <Heading size="48">
-            <Icon name="bar-chart" size="48" color="teal500" />{' '}
-            Stat Frame
+            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
           </Heading>
           <Text color="text200" size="24">
-            Enter a Farcaster ID to explore detailed stats
+            Enter a Farcaster ID or Username to explore detailed stats
           </Text>
         </VStack>
       </Box>
     ),
     intents: [
-      <TextInput placeholder="Enter Farcaster ID" />,
+      <TextInput placeholder="Enter Farcaster ID or Username" />,
       <Button action="/user_info">User Info</Button>,
       <Button action="/cast_stats">Cast Stats</Button>,
       <Button action="/moxie_stat">Moxie Stats</Button>,
@@ -132,22 +132,21 @@ app.frame('/user_info', (c) => {
   const { deriveState } = c;
   const state = deriveState((previousState) => {
     if (c.inputText) {
-      previousState.fid = c.inputText;
+      previousState.input = c.inputText;
     }
   });
-  const fid = state.fid;
-  console.log('User Info frame:', { fid });
+  const input = state.input;
+  console.log('User Info frame:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
-      image: '/user_info/user_image', // Updated image URL
+      image: '/user_info/user_image',
       intents: [<Button action="/">Back to Main</Button>],
     });
   }
 
-  // Store the fid in the state for the image handler to access
   return c.res({
-    image: '/user_info/user_image', // Updated image URL
+    image: '/user_info/user_image',
     intents: [
       <Button action="/">Back to Main</Button>,
       <Button action="/cast_stats">Cast Stats</Button>,
@@ -158,10 +157,10 @@ app.frame('/user_info', (c) => {
 
 app.image('/user_info/user_image', async (c) => {
   const state = c.previousState as State;
-  const fid = state?.fid;
-  console.log('Image Handler - User Info:', { fid });
+  const input = state?.input;
+  console.log('Image Handler - User Info:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
       image: (
         <Box
@@ -172,7 +171,7 @@ app.image('/user_info/user_image', async (c) => {
         >
           <VStack gap="16">
             <Heading size="48" color="red500">
-              Error: No FID provided
+              Error: No input provided
             </Heading>
           </VStack>
         </Box>
@@ -181,15 +180,24 @@ app.image('/user_info/user_image', async (c) => {
   }
 
   try {
-    // Get user profile
-    const res = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    const user = res.users[0] as User | undefined;
+    // Fetch user profile and store fid and username
+    const user = await fetchUserProfile(input, state);
 
-    if (!user) {
-      throw new Error('User not found');
+    // Fetch Nanograph user metrics
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
+
+    // Find the top channel contribution (handle empty array)
+    let topChannel = null;
+    if (nanographMetrics.length > 0) {
+      topChannel = nanographMetrics.reduce((prev: any, current: any) =>
+        Number(prev.contribution) > Number(current.contribution) ? prev : current
+      );
     }
 
-    // Render the user info image
+    console.log('Top Channel:', topChannel);
+    console.log('Type of contribution:', typeof topChannel?.contribution);
+
+    // Render the user info image with top channel stats displayed side by side
     return c.res({
       image: (
         <Box
@@ -197,7 +205,7 @@ app.image('/user_info/user_image', async (c) => {
           alignHorizontal="center"
           alignVertical="center"
           backgroundColor="background"
-          padding="32"
+          padding="16" // Reduced padding to allow more content to fit
         >
           <VStack gap="16" alignHorizontal="center">
             <Image
@@ -210,7 +218,8 @@ app.image('/user_info/user_image', async (c) => {
             <Text size="24" color="text200">
               @{user.username}
             </Text>
-            <HStack gap="32" alignHorizontal="center">
+
+            <HStack gap="24" alignHorizontal="center">
               <Box alignItems="center">
                 <Icon name="users" size="24" color="teal500" />
                 <Text size="16">{user.follower_count}</Text>
@@ -221,6 +230,22 @@ app.image('/user_info/user_image', async (c) => {
                 <Text size="16">{user.following_count}</Text>
                 <Text size="16" color="text200">Following</Text>
               </Box>
+              {topChannel && topChannel.channelID && topChannel.contribution ? (
+                <>
+                  <Box alignItems="center">
+                    <Icon name="award" size="24" color="amber500" />
+                    <Text size="16">{topChannel.channelID}</Text>
+                    <Text size="16" color="text200">Top Channel</Text>
+                  </Box>
+                  <Box alignItems="center">
+                    <Icon name="trending-up" size="24" color="amber500" />
+                    <Text size="16">
+                      {Number(topChannel.contribution).toLocaleString()}
+                    </Text>
+                    <Text size="16" color="text200">Contribution</Text>
+                  </Box>
+                </>
+              ) : null}
             </HStack>
           </VStack>
         </Box>
@@ -253,26 +278,27 @@ app.image('/user_info/user_image', async (c) => {
   }
 });
 
-app.frame('/cast_stats', async (c) => {
+// Similar changes should be made in other frames, such as '/cast_stats' and '/moxie_stat'
+
+app.frame('/cast_stats', (c) => {
   const { deriveState } = c;
   const state = deriveState((previousState) => {
     if (c.inputText) {
-      previousState.fid = c.inputText;
+      previousState.input = c.inputText;
     }
   });
-  const fid = state.fid;
-  console.log('Cast Stats frame:', { fid });
+  const input = state.input;
+  console.log('Cast Stats frame:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
-      image: '/cast_stats/cast_stats_image', // Updated URL
+      image: '/cast_stats/cast_stats_image',
       intents: [<Button action="/">Back to Main</Button>],
     });
   }
 
-  // Store the fid in the state for the image handler to access
   return c.res({
-    image: '/cast_stats/cast_stats_image', // Updated URL
+    image: '/cast_stats/cast_stats_image',
     intents: [
       <Button action="/">Back to Main</Button>,
       <Button action="/user_info">User Info</Button>,
@@ -283,10 +309,10 @@ app.frame('/cast_stats', async (c) => {
 
 app.image('/cast_stats/cast_stats_image', async (c) => {
   const state = c.previousState as State;
-  const fid = state?.fid;
-  console.log('Image Handler - Cast Stats:', { fid });
+  const input = state?.input;
+  console.log('Image Handler - Cast Stats:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
       image: (
         <Box
@@ -297,7 +323,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         >
           <VStack gap="16">
             <Heading size="48" color="red500">
-              Error: No FID provided
+              Error: No input provided
             </Heading>
           </VStack>
         </Box>
@@ -306,27 +332,29 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
   }
 
   try {
-    // Get user profile
-    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    console.log('User Info API response:', JSON.stringify(userRes, null, 2));
-    const user = userRes.users[0] as User | undefined;
-
-    if (!user) {
-      throw new Error('User not found');
-    }
+    // Fetch user profile and store fid and username
+    const user = await fetchUserProfile(input, state);
+    const fid = state.fid!;
 
     // Get casts for the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const castsRes = await Lum0x.farcasterCast.getCastsByFid({ fid: Number(fid), limit: 100 });
-    console.log('Casts response:', JSON.stringify(castsRes, null, 2));
 
-    if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
+    const castsRes = await Lum0x.farcasterCast.getCastsByFid({
+      fid: Number(fid),
+      limit: 100,
+    });
+
+    if (
+      !castsRes.result ||
+      !Array.isArray(castsRes.result.casts)
+    ) {
       throw new Error('Invalid casts data received');
     }
 
-    const casts = castsRes.result.casts.filter((cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo);
+    const casts = castsRes.result.casts.filter(
+      (cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo
+    );
 
     // Calculate stats with null checks
     const totalCasts = casts.length;
@@ -350,9 +378,16 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         ? ((totalInteractions / user.follower_count) * 100).toFixed(2)
         : '0.00';
 
-    // Get follower count
-    const followerCount = user.follower_count;
+    // Fetch Nanograph user metrics
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
 
+    // Calculate total contribution from Nanograph metrics
+    const totalContribution = nanographMetrics.reduce(
+      (sum: number, metric: any) => sum + (metric.contribution || 0),
+      0
+    );
+
+    // Render the combined analytics image with adjusted layout
     return c.res({
       image: (
         <Box
@@ -360,17 +395,19 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
           alignHorizontal="center"
           alignVertical="center"
           backgroundColor="background"
-          padding="32"
+          padding="16"
         >
           <VStack gap="16" alignHorizontal="center">
             <Heading size="32">
               Cast Stats for @{user.username}
             </Heading>
             <Divider color="gray700" />
-            <HStack gap="32" alignHorizontal="center">
+
+            {/* Existing stats displayed in HStack */}
+            <HStack gap="24" alignHorizontal="center">
               <Box alignItems="center">
                 <Icon name="users" size="24" color="purple500" />
-                <Text size="24">{followerCount}</Text>
+                <Text size="24">{user.follower_count}</Text>
                 <Text size="20" color="text200">Followers</Text>
               </Box>
               <Box alignItems="center">
@@ -394,10 +431,25 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Text size="20" color="text200">Replies</Text>
               </Box>
             </HStack>
+
             <Divider color="gray700" />
-            <Text size="24" color="text200">
-              Engagement Rate: {engagementRate}%
-            </Text>
+
+            {/* Display Engagement Rate and Total Contribution in the same line */}
+            <HStack gap="24" alignHorizontal="center">
+              <Box alignItems="center">
+                <Icon name="activity" size="24" color="amber500" />
+                <Text size="24">{engagementRate}%</Text>
+                <Text size="20" color="text200">Engagement Rate</Text>
+              </Box>
+              <Box alignItems="center">
+                <Icon name="trending-up" size="24" color="amber500" />
+                <Text size="24">
+                  {Number(totalContribution).toLocaleString()}
+                </Text>
+                <Text size="20" color="text200">Total Contribution</Text>
+              </Box>
+            </HStack>
+
           </VStack>
         </Box>
       ),
@@ -424,13 +476,13 @@ app.frame('/moxie_stat', (c) => {
   const { deriveState } = c;
   const state = deriveState((previousState) => {
     if (c.inputText) {
-      previousState.fid = c.inputText;
+      previousState.input = c.inputText;
     }
   });
-  const fid = state.fid;
-  console.log('Moxie Stat frame:', { fid });
+  const input = state.input;
+  console.log('Moxie Stat frame:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
       image: '/moxie_stat/moxie_image',
       intents: [<Button action="/">Back to Main</Button>],
@@ -449,12 +501,10 @@ app.frame('/moxie_stat', (c) => {
 
 app.image('/moxie_stat/moxie_image', async (c) => {
   const state = c.previousState as State;
-  const fid = state?.fid;
-  console.log('Image Handler - Moxie Stat:', { fid });
-  const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-  const user = userRes.users[0];
+  const input = state?.input;
+  console.log('Image Handler - Moxie Stat:', { input });
 
-  if (!fid) {
+  if (!input) {
     return c.res({
       image: (
         <Box
@@ -465,7 +515,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
         >
           <VStack gap="16">
             <Heading size="48" color="red500">
-              Error: No FID provided
+              Error: No input provided
             </Heading>
           </VStack>
         </Box>
@@ -474,6 +524,10 @@ app.image('/moxie_stat/moxie_image', async (c) => {
   }
 
   try {
+    // Fetch user profile and store fid and username
+    const user = await fetchUserProfile(input, state);
+    const fid = state.fid!;
+
     // Fetch Moxie earning stats
     const res = await Lum0x.farcasterMoxie.getEarningStat({
       entity_type: 'USER',
@@ -481,7 +535,8 @@ app.image('/moxie_stat/moxie_image', async (c) => {
       timeframe: 'LIFETIME',
     });
 
-    const moxieStatArray = res.data?.FarcasterMoxieEarningStats?.FarcasterMoxieEarningStat;
+    const moxieStatArray =
+      res.data?.FarcasterMoxieEarningStats?.FarcasterMoxieEarningStat;
 
     if (
       !moxieStatArray ||
@@ -492,10 +547,6 @@ app.image('/moxie_stat/moxie_image', async (c) => {
     }
 
     const moxieStat = moxieStatArray[0];
-
-    // Fetch user profile to get the username
-    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    const user = userRes.users[0];
 
     // Updated image component with icons and improved styling
     return c.res({
@@ -517,28 +568,36 @@ app.image('/moxie_stat/moxie_image', async (c) => {
               <Box alignItems="center">
                 <Icon name="coins" size="24" color="green500" />
                 <Text size="24">
-                  {moxieStat.allEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {moxieStat.allEarningsAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
                 <Text size="20" color="text200">Total Earned</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="image" size="24" color="blue500" />
                 <Text size="24">
-                  {moxieStat.castEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {moxieStat.castEarningsAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
                 <Text size="20" color="text200">Cast Earnings</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="code" size="24" color="purple500" />
                 <Text size="24">
-                  {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
                 <Text size="20" color="text200">Frame Dev Earnings</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="box" size="24" color="teal500" />
                 <Text size="24">
-                  {moxieStat.otherEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {moxieStat.otherEarningsAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
                 <Text size="20" color="text200">Other Earnings</Text>
               </Box>
@@ -578,6 +637,53 @@ app.image('/moxie_stat/moxie_image', async (c) => {
     });
   }
 });
+
+// Utility function to fetch user profile and store fid and username
+async function fetchUserProfile(input: string, state: State): Promise<User> {
+  let user: User | undefined = undefined;
+  if (/^\d+$/.test(input)) {
+    // Input is numeric, treat as fid
+    const fid = input;
+    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+    user = userRes.users[0];
+  } else {
+    // Input is non-numeric, treat as username
+    const username = input;
+    const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
+    user = userRes.user;
+  }
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Store fid and username in the state
+  state.fid = user.fid.toString();
+  state.username = user.username;
+
+  return user;
+}
+
+// Utility function to fetch Nanograph metrics
+async function fetchNanographMetrics(username: string): Promise<any[]> {
+  // Get the current date in YYYY-MM-DD format
+  const currentDate = new Date().toISOString().split('T')[0];
+  console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
+
+  const response = await fetch(
+    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+  );
+
+  const responseText = await response.text();
+  console.log('Nanograph API response:', responseText);
+
+  if (!response.ok) {
+    throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
+  }
+
+  const metrics = JSON.parse(responseText);
+  return metrics;
+}
 
 if (process.env.NODE_ENV === 'development') {
   devtools(app, { serveStatic })
