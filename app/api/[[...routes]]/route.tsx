@@ -113,7 +113,7 @@ app.frame('/', (c) => {
           <Heading size="48">
             <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
           </Heading>
-          <Text color="text200" size="24">
+          <Text color="text200" size="16" align='center'>
             Enter a Farcaster ID or Username to explore detailed stats
           </Text>
         </VStack>
