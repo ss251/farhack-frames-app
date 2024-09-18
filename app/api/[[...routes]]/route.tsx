@@ -6,6 +6,7 @@ import { neynar } from 'frog/hubs'
 import { Lum0x } from 'lum0x-sdk'
 import { devtools } from 'frog/dev'
 import { serveStatic } from 'frog/serve-static'
+import { createSystem } from 'frog/ui'
 
 Lum0x.init(process.env.LUM0X_API_KEY as string)
 
@@ -72,6 +73,14 @@ type State = {
   fid: string
 }
 
+const {
+  Box,
+  Heading,
+  Text,
+  VStack,
+  vars,
+} = createSystem()
+
 const app = new Frog<{ State: State }>({
   assetsPath: '/',
   basePath: '/api',
@@ -80,6 +89,7 @@ const app = new Frog<{ State: State }>({
   initialState: {
     fid: '',
   },
+  ui: { vars },
   title: 'Farcaster Analytics Hub',
 })
 
@@ -89,10 +99,17 @@ app.frame('/', (c) => {
 
   return c.res({
     image: (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-        <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Farcaster Analytics Hub</h1>
-        <p style={{ fontSize: '36px', textAlign: 'center' }}>Enter a Farcaster ID to explore detailed analytics</p>
-      </div>
+      <Box
+        grow
+        alignHorizontal="center"
+        backgroundColor="background"
+        padding="32"
+      >
+        <VStack gap="16">
+          <Heading size="48">Farcaster Analytics Hub</Heading>
+          <Text color="text200" size="24">Enter a Farcaster ID to explore detailed analytics</Text>
+        </VStack>
+      </Box>
     ),
     intents: [
       <TextInput placeholder="Enter Farcaster ID" />,
@@ -115,9 +132,11 @@ app.frame('/user_info', async (c) => {
   if (!fid) {
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Error: No FID provided</h1>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48" color="red">Error: No FID provided</Heading>
+          </VStack>
+        </Box>
       ),
       intents: [<Button action="/">Back to Main</Button>],
     })
@@ -134,12 +153,14 @@ app.frame('/user_info', async (c) => {
 
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>User Info: {user.display_name}</h1>
-          <p style={{ fontSize: '36px' }}>Username: @{user.username}</p>
-          <p style={{ fontSize: '36px' }}>Followers: {user.follower_count}</p>
-          <p style={{ fontSize: '36px' }}>Following: {user.following_count}</p>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48">User Info: {user.display_name}</Heading>
+            <Text size="32" color="text200">Username: @{user.username}</Text>
+            <Text size="32" color="text200">Followers: {user.follower_count}</Text>
+            <Text size="32" color="text200">Following: {user.following_count}</Text>
+          </VStack>
+        </Box>
       ),
       intents: [
         <Button action="/">Back to Main</Button>,
@@ -150,10 +171,12 @@ app.frame('/user_info', async (c) => {
     console.error('Error fetching user data:', error)
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Error fetching user data</h1>
-          <p style={{ fontSize: '36px', color: 'red' }}>{error instanceof Error ? error.message : 'Unknown error'}</p>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48" color="red">Error fetching user data</Heading>
+            <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+          </VStack>
+        </Box>
       ),
       intents: [<Button action="/">Back to Main</Button>],
     })
@@ -173,9 +196,11 @@ app.frame('/cast_analytics', async (c) => {
   if (!fid) {
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Error: No FID provided</h1>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48" color="red">Error: No FID provided</Heading>
+          </VStack>
+        </Box>
       ),
       intents: [<Button action="/">Back to Main</Button>],
     })
@@ -219,15 +244,17 @@ app.frame('/cast_analytics', async (c) => {
 
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Cast Analytics for @{user.username}</h1>
-          <p style={{ fontSize: '36px' }}>Followers: {followerCount}</p>
-          <p style={{ fontSize: '36px' }}>Total Casts (30 days): {totalCasts}</p>
-          <p style={{ fontSize: '36px' }}>Total Likes: {totalLikes}</p>
-          <p style={{ fontSize: '36px' }}>Total Recasts: {totalRecasts}</p>
-          <p style={{ fontSize: '36px' }}>Total Replies: {totalReplies}</p>
-          <p style={{ fontSize: '36px' }}>Engagement Rate: {engagementRate}%</p>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="24">Cast Analytics for @{user.username}</Heading>
+            <Text size="16" color="text200">Followers: {followerCount}</Text>
+            <Text size="16" color="text200">Total Casts (30 days): {totalCasts}</Text>
+            <Text size="16" color="text200">Total Likes: {totalLikes}</Text>
+            <Text size="16" color="text200">Total Recasts: {totalRecasts}</Text>
+            <Text size="16" color="text200">Total Replies: {totalReplies}</Text>
+            <Text size="16" color="text200">Engagement Rate: {engagementRate}%</Text>
+          </VStack>
+        </Box>
       ),
       intents: [
         <Button action="/">Back to Main</Button>,
@@ -238,10 +265,12 @@ app.frame('/cast_analytics', async (c) => {
     console.error('Error fetching cast data:', error)
     return c.res({
       image: (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#1E1E1E', color: 'white', fontFamily: 'Arial, sans-serif' }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', textAlign: 'center' }}>Error fetching cast data</h1>
-          <p style={{ fontSize: '36px', color: 'red' }}>{error instanceof Error ? error.message : 'Unknown error'}</p>
-        </div>
+        <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
+          <VStack gap="16">
+            <Heading size="48" color="red">Error fetching cast data</Heading>
+            <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+          </VStack>
+        </Box>
       ),
       intents: [<Button action="/">Back to Main</Button>],
     })
