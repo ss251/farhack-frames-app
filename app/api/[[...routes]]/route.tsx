@@ -276,6 +276,7 @@ app.frame('/cast_analytics', async (c) => {
     intents: [
       <Button action="/">Back to Main</Button>,
       <Button action="/user_info">View User Info</Button>,
+      <Button action="/moxie_stat">View Moxie Stats</Button>,
     ],
   });
 });
@@ -441,6 +442,7 @@ app.frame('/moxie_stat', (c) => {
     intents: [
       <Button action="/">Back to Main</Button>,
       <Button action="/user_info">View User Info</Button>,
+      <Button action="/cast_analytics">View Cast Analytics</Button>,
     ],
   });
 });
@@ -481,15 +483,21 @@ app.image('/moxie_stat/moxie_image', async (c) => {
 
     const moxieStatArray = res.data?.FarcasterMoxieEarningStats?.FarcasterMoxieEarningStat;
 
-    if (!moxieStatArray || !Array.isArray(moxieStatArray) || moxieStatArray.length === 0) {
+    if (
+      !moxieStatArray ||
+      !Array.isArray(moxieStatArray) ||
+      moxieStatArray.length === 0
+    ) {
       throw new Error('Moxie stats not found');
     }
 
     const moxieStat = moxieStatArray[0];
 
-    console.log('Moxie Stats API response:', JSON.stringify(moxieStat, null, 2));
+    // Fetch user profile to get the username
+    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+    const user = userRes.users[0];
 
-    // Render the Moxie stats image
+    // Updated image component with icons and improved styling
     return c.res({
       image: (
         <Box
@@ -503,14 +511,43 @@ app.image('/moxie_stat/moxie_image', async (c) => {
             <Heading size="32">
               Moxie Stats for @{user.username}
             </Heading>
-            <Divider />
-            <Text size="24">
-              Total Moxie Earned: {moxieStat.allEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            <Divider color="gray700" />
+
+            <HStack gap="32" alignHorizontal="center">
+              <Box alignItems="center">
+                <Icon name="coins" size="24" color="green500" />
+                <Text size="24">
+                  {moxieStat.allEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </Text>
+                <Text size="20" color="text200">Total Earned</Text>
+              </Box>
+              <Box alignItems="center">
+                <Icon name="image" size="24" color="blue500" />
+                <Text size="24">
+                  {moxieStat.castEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </Text>
+                <Text size="20" color="text200">Cast Earnings</Text>
+              </Box>
+              <Box alignItems="center">
+                <Icon name="code" size="24" color="purple500" />
+                <Text size="24">
+                  {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </Text>
+                <Text size="20" color="text200">Frame Dev Earnings</Text>
+              </Box>
+              <Box alignItems="center">
+                <Icon name="box" size="24" color="teal500" />
+                <Text size="24">
+                  {moxieStat.otherEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </Text>
+                <Text size="20" color="text200">Other Earnings</Text>
+              </Box>
+            </HStack>
+
+            <Divider color="gray700" />
+            <Text size="24" color="text200">
+              Timeframe: {moxieStat.timeframe}
             </Text>
-            <Text size="24">Total Cast Earnings: {moxieStat.castEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
-            <Text size="24">Frame Dev Earnings: {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
-            <Text size="24">Other Earnings: {moxieStat.otherEarningsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
-            <Text size="24">Timeframe: {moxieStat.timeframe}</Text>
           </VStack>
         </Box>
       ),
