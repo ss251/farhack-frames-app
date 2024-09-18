@@ -672,29 +672,43 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
 // Utility function to fetch Nanograph metrics (updated to handle errors gracefully)
 async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
-  console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
+  const url = `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`;
+  console.log('Fetching Nanograph metrics:', { username, url, currentDate });
 
   try {
-    const response = await fetch(
-      `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
-    );
+    const response = await fetch(url);
+
+    console.log('Nanograph API response:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+    });
 
     if (!response.ok) {
-      console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
-      return []; // Return an empty array for non-OK responses
+      console.error(`Nanograph API returned status ${response.status} for username: ${username}`);
+      return [];
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error(`Unexpected content type from Nanograph API: ${contentType}`);
+      const text = await response.text();
+      console.error('Response body:', text);
+      return [];
     }
 
     const metrics = await response.json();
-    
+    console.log('Nanograph API metrics:', metrics);
+
     if (!Array.isArray(metrics)) {
-      console.log(`Unexpected response format from Nanograph API for username: ${username}`);
+      console.error(`Unexpected response format from Nanograph API for username: ${username}`);
       return [];
     }
 
     return metrics;
   } catch (error) {
     console.error('Error fetching Nanograph metrics:', error);
-    return []; // Return an empty array for any errors
+    return [];
   }
 }
 
