@@ -92,7 +92,7 @@ const app = new Frog<{ State: State }>({
     fid: '',
   },
   ui: { vars },
-  title: 'Farcaster Analytics Hub',
+  title: 'Stat Frame',
 });
 
 app.frame('/', (c) => {
@@ -111,10 +111,10 @@ app.frame('/', (c) => {
         <VStack gap="16" alignHorizontal="center">
           <Heading size="48">
             <Icon name="bar-chart" size="48" color="teal500" />{' '}
-            Farcaster Analytics Hub
+            Stat Frame
           </Heading>
           <Text color="text200" size="24">
-            Enter a Farcaster ID to explore detailed analytics
+            Enter a Farcaster ID to explore detailed stats
           </Text>
         </VStack>
       </Box>
@@ -122,7 +122,7 @@ app.frame('/', (c) => {
     intents: [
       <TextInput placeholder="Enter Farcaster ID" />,
       <Button action="/user_info">User Info</Button>,
-      <Button action="/cast_analytics">Cast Analytics</Button>,
+      <Button action="/cast_stats">Cast Stats</Button>,
       <Button action="/moxie_stat">Moxie Stats</Button>,
     ],
   });
@@ -150,7 +150,7 @@ app.frame('/user_info', (c) => {
     image: '/user_info/user_image', // Updated image URL
     intents: [
       <Button action="/">Back to Main</Button>,
-      <Button action="/cast_analytics">View Cast Analytics</Button>,
+      <Button action="/cast_stats">Cast Stats</Button>,
       <Button action="/moxie_stat">Moxie Stats</Button>,
     ],
   });
@@ -212,7 +212,7 @@ app.image('/user_info/user_image', async (c) => {
             </Text>
             <HStack gap="32" alignHorizontal="center">
               <Box alignItems="center">
-                <Icon name="user" size="24" color="teal500" />
+                <Icon name="users" size="24" color="teal500" />
                 <Text size="16">{user.follower_count}</Text>
                 <Text size="16" color="text200">Followers</Text>
               </Box>
@@ -253,7 +253,7 @@ app.image('/user_info/user_image', async (c) => {
   }
 });
 
-app.frame('/cast_analytics', async (c) => {
+app.frame('/cast_stats', async (c) => {
   const { deriveState } = c;
   const state = deriveState((previousState) => {
     if (c.inputText) {
@@ -261,30 +261,30 @@ app.frame('/cast_analytics', async (c) => {
     }
   });
   const fid = state.fid;
-  console.log('Cast Analytics frame:', { fid });
+  console.log('Cast Stats frame:', { fid });
 
   if (!fid) {
     return c.res({
-      image: '/cast_analytics/analytics_image', // Updated URL
+      image: '/cast_stats/cast_stats_image', // Updated URL
       intents: [<Button action="/">Back to Main</Button>],
     });
   }
 
   // Store the fid in the state for the image handler to access
   return c.res({
-    image: '/cast_analytics/analytics_image', // Updated URL
+    image: '/cast_stats/cast_stats_image', // Updated URL
     intents: [
       <Button action="/">Back to Main</Button>,
-      <Button action="/user_info">View User Info</Button>,
-      <Button action="/moxie_stat">View Moxie Stats</Button>,
+      <Button action="/user_info">User Info</Button>,
+      <Button action="/moxie_stat">Moxie Stats</Button>,
     ],
   });
 });
 
-app.image('/cast_analytics/analytics_image', async (c) => {
+app.image('/cast_stats/cast_stats_image', async (c) => {
   const state = c.previousState as State;
   const fid = state?.fid;
-  console.log('Image Handler - Cast Analytics:', { fid });
+  console.log('Image Handler - Cast Stats:', { fid });
 
   if (!fid) {
     return c.res({
@@ -328,7 +328,7 @@ app.image('/cast_analytics/analytics_image', async (c) => {
 
     const casts = castsRes.result.casts.filter((cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo);
 
-    // Calculate analytics with null checks
+    // Calculate stats with null checks
     const totalCasts = casts.length;
     const totalLikes = casts.reduce(
       (sum: number, cast: Cast) => sum + (cast.reactions?.count || 0),
@@ -364,7 +364,7 @@ app.image('/cast_analytics/analytics_image', async (c) => {
         >
           <VStack gap="16" alignHorizontal="center">
             <Heading size="32">
-              Cast Analytics for @{user.username}
+              Cast Stats for @{user.username}
             </Heading>
             <Divider color="gray700" />
             <HStack gap="32" alignHorizontal="center">
@@ -441,8 +441,8 @@ app.frame('/moxie_stat', (c) => {
     image: '/moxie_stat/moxie_image',
     intents: [
       <Button action="/">Back to Main</Button>,
-      <Button action="/user_info">View User Info</Button>,
-      <Button action="/cast_analytics">View Cast Analytics</Button>,
+      <Button action="/user_info">User Info</Button>,
+      <Button action="/cast_stats">Cast Stats</Button>,
     ],
   });
 });

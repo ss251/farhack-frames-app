@@ -6,8 +6,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const url = process.env.VERCEL_URL || 'http://localhost:3000'
   const frameMetadata = await getFrameMetadata(`${url}/api`)
   return {
-    title: 'Farcaster Analytics Hub',
-    description: 'Explore detailed analytics for Farcaster users',
+    title: 'Stat Frame',
+    description: 'Explore detailed statistics for Farcaster users',
     other: frameMetadata,
   }
 }
@@ -15,8 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function Home() {
   return (
     <main className={styles.main}>
-      <h1>Welcome to Farcaster Analytics Hub</h1>
-      <p>This is a web application for exploring Farcaster analytics.</p>
+      <h1>Welcome to Stat Frame</h1>
+      <p>This is a web application for exploring Farcaster statistics.</p>
       <p>To interact with the Frame, visit this page on a Farcaster client.</p>
     </main>
   )

@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Farcaster Analytics Hub',
-  description: 'Explore detailed analytics for Farcaster users',
+  title: 'Stat Frame',
+  description: 'Explore detailed statistics for Farcaster users',
 }
 
 export default function RootLayout({
