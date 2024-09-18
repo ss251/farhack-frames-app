@@ -113,7 +113,7 @@ async function getCachedData<T>(
     return cachedData;
   } else {
     const data = await fetchFunction();
-    nodeCache.set(key, data, ttl?.toString() || '300'); // Use TTL if provided
+    nodeCache.set(key, data, ttl || 300); // Use TTL if provided
     return data;
   }
 }
@@ -210,7 +210,7 @@ app.image('/user_info/user_image', async (c) => {
 
     // Find the top channel contribution (handle empty array)
     let topChannel = null;
-    if (nanographMetrics.length > 0) {
+    if (nanographMetrics && nanographMetrics.length > 0) {
       topChannel = nanographMetrics.reduce((prev: any, current: any) =>
         Number(prev.contribution) > Number(current.contribution) ? prev : current
       );
@@ -252,7 +252,7 @@ app.image('/user_info/user_image', async (c) => {
                 <Text size="16">{user.following_count}</Text>
                 <Text size="16" color="text200">Following</Text>
               </Box>
-              {topChannel && topChannel.channelID && topChannel.contribution ? (
+              {topChannel ? (
                 <>
                   <Box alignItems="center">
                     <Icon name="award" size="24" color="amber500" />
@@ -267,7 +267,13 @@ app.image('/user_info/user_image', async (c) => {
                     <Text size="16" color="text200">Contribution</Text>
                   </Box>
                 </>
-              ) : null}
+              ) : (
+                <Box alignItems="center">
+                  <Icon name="info" size="24" color="gray500" />
+                  <Text size="16" color="text200">No Nanograph Data</Text>
+                  <Text size="16" color="text200">Available</Text>
+                </Box>
+              )}
             </HStack>
           </VStack>
         </Box>
@@ -405,10 +411,13 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
     const nanographMetrics = await fetchNanographMetrics(state.username!);
 
     // Calculate total contribution from Nanograph metrics
-    const totalContribution = nanographMetrics.reduce(
-      (sum: number, metric: any) => sum + (metric.contribution || 0),
-      0
-    );
+    let totalContribution = 0;
+    if (nanographMetrics && nanographMetrics.length > 0) {
+      totalContribution = nanographMetrics.reduce(
+        (sum: number, metric: any) => sum + (metric.contribution || 0),
+        0
+      );
+    }
 
     // Render the combined analytics image with adjusted layout
     return c.res({
@@ -464,13 +473,20 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Text size="24">{engagementRate}%</Text>
                 <Text size="20" color="text200">Engagement Rate</Text>
               </Box>
-              <Box alignItems="center">
-                <Icon name="trending-up" size="24" color="amber500" />
-                <Text size="24">
-                  {Number(totalContribution).toLocaleString()}
-                </Text>
-                <Text size="20" color="text200">Total Contribution</Text>
-              </Box>
+              {totalContribution > 0 ? (
+                <Box alignItems="center">
+                  <Icon name="trending-up" size="24" color="amber500" />
+                  <Text size="24">
+                    {Number(totalContribution).toLocaleString()}
+                  </Text>
+                  <Text size="20" color="text200">Total Contribution</Text>
+                </Box>
+              ) : (
+                <Box alignItems="center">
+                  <Icon name="info" size="24" color="gray500" />
+                  <Text size="20" color="text200">No Nanograph Data</Text>
+                </Box>
+              )}
             </HStack>
 
           </VStack>
@@ -698,25 +714,27 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
 // Utility function to fetch Nanograph metrics
 async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
-  const cacheKey = `nanograph_metrics_${username}_${currentDate}`;
+  console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
 
-  return getCachedData(cacheKey, async () => {
-    console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
+  const response = await fetch(
+    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+  );
 
-    const response = await fetch(
-      `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
-    );
+  if (response.status === 404) {
+    // No data available for this user
+    console.log(`Nanograph metrics not found for username: ${username}`);
+    return []; // Return an empty array or handle accordingly
+  }
 
-    const responseText = await response.text();
-    console.log('Nanograph API response:', responseText);
+  const responseText = await response.text();
+  console.log('Nanograph API response:', responseText);
 
-    if (!response.ok) {
-      throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
-    }
+  if (!response.ok) {
+    throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
+  }
 
-    const metrics = JSON.parse(responseText);
-    return metrics;
-  }, 300); // Cache for 5 minutes
+  const metrics = JSON.parse(responseText);
+  return metrics;
 }
 
 if (process.env.NODE_ENV === 'development') {
