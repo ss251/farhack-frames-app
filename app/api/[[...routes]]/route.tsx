@@ -111,12 +111,16 @@ app.frame('/', (c) => {
         padding="32"
       >
         <VStack gap="16" alignHorizontal="center">
-          <Heading size="48">
-            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
+          <HStack gap="8" alignHorizontal="center">
+          <Icon name="bar-chart-2" size="32" color="teal700" />
+          <Heading size="32">
+             Stat Frame
           </Heading>
-          <Text color="text200" size="16" align='center'>
+          <Text color="text200" size="16" align="center">
             Enter a Farcaster ID or Username to explore detailed stats
           </Text>
+          </HStack>
+          
         </VStack>
       </Box>
     ),
@@ -171,7 +175,7 @@ app.image('/user_info/user_image', async (c) => {
           padding="32"
         >
           <VStack gap="16">
-            <Heading size="48" color="red500">
+            <Heading size="32" color="red500">
               Error: No input provided
             </Heading>
           </VStack>
@@ -207,7 +211,7 @@ app.image('/user_info/user_image', async (c) => {
           alignHorizontal="center"
           alignVertical="center"
           backgroundColor="background"
-          padding="16" // Reduced padding to allow more content to fit
+          padding="24"
         >
           <VStack gap="16" alignHorizontal="center">
             <Image
@@ -216,8 +220,8 @@ app.image('/user_info/user_image', async (c) => {
               height="96"
               borderRadius="48"
             />
-            <Heading size="32">{user.display_name}</Heading>
-            <Text size="24" color="text200">
+            <Heading size="24">{user.display_name}</Heading>
+            <Text size="20" color="text200">
               @{user.username}
             </Text>
 
@@ -225,33 +229,33 @@ app.image('/user_info/user_image', async (c) => {
               <Box alignItems="center">
                 <Icon name="users" size="24" color="teal500" />
                 <Text size="16">{user.follower_count}</Text>
-                <Text size="16" color="text200">Followers</Text>
+                <Text size="12" color="text200">Followers</Text>
               </Box>
               <Box alignItems="center">
-                <Icon name="user-check" size="24" color="teal500" />
+                <Icon name="user-plus" size="24" color="teal500" />
                 <Text size="16">{user.following_count}</Text>
-                <Text size="16" color="text200">Following</Text>
+                <Text size="12" color="text200">Following</Text>
               </Box>
               {topChannel ? (
                 <>
                   <Box alignItems="center">
-                    <Icon name="award" size="24" color="amber500" />
+                    <Icon name="hash" size="24" color="amber500" />
                     <Text size="16">{topChannel.channelID}</Text>
-                    <Text size="16" color="text200">Top Channel</Text>
+                    <Text size="12" color="text200">Top Channel</Text>
                   </Box>
                   <Box alignItems="center">
-                    <Icon name="trending-up" size="24" color="amber500" />
+                    <Icon name="activity" size="24" color="amber500" />
                     <Text size="16">
                       {Number(topChannel.contribution).toLocaleString()}
                     </Text>
-                    <Text size="16" color="text200">Contribution</Text>
+                    <Text size="12" color="text200">Contribution</Text>
                   </Box>
                 </>
               ) : (
                 <Box alignItems="center">
                   <Icon name="info" size="24" color="gray500" />
                   <Text size="16" color="text200">No Nanograph Data</Text>
-                  <Text size="16" color="text200">Available</Text>
+                  <Text size="12" color="text200">Available</Text>
                 </Box>
               )}
             </HStack>
@@ -276,7 +280,7 @@ app.image('/user_info/user_image', async (c) => {
             <Heading size="32" color="red500">
               Error fetching user data
             </Heading>
-            <Text size="24" color="red">
+            <Text size="20" color="red">
               {error instanceof Error ? error.message : 'Unknown error'}
             </Text>
           </VStack>
@@ -330,7 +334,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
           padding="32"
         >
           <VStack gap="16">
-            <Heading size="48" color="red500">
+            <Heading size="32" color="red500">
               Error: No input provided
             </Heading>
           </VStack>
@@ -408,37 +412,53 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
           padding="16"
         >
           <VStack gap="16" alignHorizontal="center">
-            <Heading size="32">
-              Cast Stats for @{user.username}
+          <HStack gap="8" alignHorizontal="center">
+            <Heading size="20">
+              Cast Stats: 
             </Heading>
+              <Image
+                src={user.pfp_url}
+                width="24"
+                height="24"
+                borderRadius="48"
+                
+              />
+              <Heading size="20">
+              @{user.username} ({user.display_name})
+              </Heading>
+            
+            </HStack>
             <Divider color="gray700" />
+
+            {/* Add HStack for profile image and name */}
+            
 
             {/* Existing stats displayed in HStack */}
             <HStack gap="24" alignHorizontal="center">
               <Box alignItems="center">
                 <Icon name="users" size="24" color="purple500" />
-                <Text size="24">{user.follower_count}</Text>
-                <Text size="20" color="text200">Followers</Text>
+                <Text size="20">{user.follower_count}</Text>
+                <Text size="16" color="text200">Followers</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="pencil" size="24" color="teal500" />
-                <Text size="24">{totalCasts}</Text>
-                <Text size="20" color="text200">Casts</Text>
+                <Text size="20">{totalCasts}</Text>
+                <Text size="16" color="text200">Casts</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="heart" size="24" color="red500" />
-                <Text size="24">{totalLikes}</Text>
-                <Text size="20" color="text200">Reactions</Text>
+                <Text size="20">{totalLikes}</Text>
+                <Text size="16" color="text200">Reactions</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="refresh-cw" size="24" color="teal500" />
-                <Text size="24">{totalRecasts}</Text>
-                <Text size="20" color="text200">Recasts</Text>
+                <Text size="20">{totalRecasts}</Text>
+                <Text size="16" color="text200">Recasts</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="message-square" size="24" color="blue600" />
-                <Text size="24">{totalReplies}</Text>
-                <Text size="20" color="text200">Replies</Text>
+                <Text size="20">{totalReplies}</Text>
+                <Text size="16" color="text200">Replies</Text>
               </Box>
             </HStack>
 
@@ -448,21 +468,21 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
             <HStack gap="24" alignHorizontal="center">
               <Box alignItems="center">
                 <Icon name="activity" size="24" color="amber500" />
-                <Text size="24">{engagementRate}%</Text>
-                <Text size="20" color="text200">Engagement Rate</Text>
+                <Text size="20">{engagementRate}%</Text>
+                <Text size="16" color="text200">Engagement Rate</Text>
               </Box>
               {totalContribution > 0 ? (
                 <Box alignItems="center">
-                  <Icon name="trending-up" size="24" color="amber500" />
-                  <Text size="24">
+                  <Icon name="activity" size="24" color="amber500" />
+                  <Text size="20">
                     {Number(totalContribution).toLocaleString()}
                   </Text>
-                  <Text size="20" color="text200">Total Contribution</Text>
+                  <Text size="16" color="text200">Total Contribution</Text>
                 </Box>
               ) : (
                 <Box alignItems="center">
                   <Icon name="info" size="24" color="gray500" />
-                  <Text size="20" color="text200">No Nanograph Data</Text>
+                  <Text size="16" color="text200">No Nanograph Data</Text>
                 </Box>
               )}
             </HStack>
@@ -480,8 +500,8 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
       image: (
         <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
           <VStack gap="16">
-            <Heading size="48" color="red500">Error fetching cast data</Heading>
-            <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+            <Heading size="32" color="red500">Error fetching cast data</Heading>
+            <Text size="20" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
           </VStack>
         </Box>
       ),
@@ -531,7 +551,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
           padding="32"
         >
           <VStack gap="16">
-            <Heading size="48" color="red500">
+            <Heading size="32" color="red500">
               Error: No input provided
             </Heading>
           </VStack>
@@ -576,54 +596,66 @@ app.image('/moxie_stat/moxie_image', async (c) => {
           padding="32"
         >
           <VStack gap="16" alignHorizontal="center">
-            <Heading size="32">
-              Moxie Stats for @{user.username}
-            </Heading>
+            <HStack gap="8" alignHorizontal="center">
+              <Heading size="20">
+                Moxie Stats: 
+              </Heading>
+              <Image
+                src={user.pfp_url}
+                width="24"
+                height="24"
+                borderRadius="48"
+                
+              />
+              <Heading size="20">
+              @{user.username} ({user.display_name})
+              </Heading>
+            </HStack>
             <Divider color="gray700" />
 
-            <HStack gap="32" alignHorizontal="center">
+            <HStack gap="32" alignHorizontal="left">
               <Box alignItems="center">
                 <Icon name="coins" size="24" color="green500" />
-                <Text size="24">
+                <Text size="20">
                   {moxieStat.allEarningsAmount.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </Text>
-                <Text size="20" color="text200">Total Earned</Text>
+                <Text size="16" color="text200">Total Earned</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="image" size="24" color="blue500" />
-                <Text size="24">
+                <Text size="20">
                   {moxieStat.castEarningsAmount.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </Text>
-                <Text size="20" color="text200">Cast Earnings</Text>
+                <Text size="16" color="text200">Cast Earnings</Text>
               </Box>
-              <Box alignItems="center">
+            </HStack>
+            <HStack gap="32" alignHorizontal="left">
+            <Box alignItems="center">
                 <Icon name="code" size="24" color="purple500" />
-                <Text size="24">
+                <Text size="20">
                   {moxieStat.frameDevEarningsAmount.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </Text>
-                <Text size="20" color="text200">Frame Dev Earnings</Text>
+                <Text size="16" color="text200">Frame Dev Earnings</Text>
               </Box>
               <Box alignItems="center">
                 <Icon name="box" size="24" color="teal500" />
-                <Text size="24">
+                <Text size="20">
                   {moxieStat.otherEarningsAmount.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </Text>
-                <Text size="20" color="text200">Other Earnings</Text>
+                <Text size="16" color="text200">Other Earnings</Text>
               </Box>
             </HStack>
 
-            <Divider color="gray700" />
-            <Text size="24" color="text200">
-              Timeframe: {moxieStat.timeframe}
-            </Text>
+            <Divider color="gray700"/>
+            
           </VStack>
         </Box>
       ),
@@ -645,7 +677,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
             <Heading size="32" color="red500">
               Error fetching Moxie stats
             </Heading>
-            <Text size="24" color="red">
+            <Text size="20" color="red">
               {error instanceof Error ? error.message : 'Unknown error'}
             </Text>
           </VStack>
