@@ -663,7 +663,7 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
     // Input is numeric, treat as fid
     const fid = input;
     const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    user = userRes.result.users[0];
+    user = userRes.users[0];
   } else {
     // Input is non-numeric, treat as username
     const username = input;
