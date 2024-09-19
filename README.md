@@ -2,7 +2,7 @@
 
 Stat Frame is a Farcaster Frame server that allows users to explore detailed statistics within Farcaster frames by entering a Farcaster id or username. It provides user information, cast stats (past 30 days), and Moxie earnings stats (lifetime).
 
-![Placeholder GIF](/farhack-frames-app-demo.gif)
+![Placeholder GIF](public/farhack-frames-app-demo.gif)
 
 ### Features
 
