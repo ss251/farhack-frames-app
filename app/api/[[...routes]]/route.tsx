@@ -181,8 +181,6 @@ app.image('/user_info/user_image', async (c) => {
       ),
     });
   }
-
-  try {
     // Fetch user profile and store fid and username
     const user = await fetchUserProfile(input, state);
 
@@ -249,29 +247,8 @@ app.image('/user_info/user_image', async (c) => {
       headers: {
         'Cache-Control': 'public, max-age=300',
       },
-    });
-  } catch (error) {
-    console.error('Error in Image Handler:', error);
-    return c.res({
-      image: (
-        <Box
-          grow
-          alignHorizontal="center"
-          backgroundColor="background"
-          padding="32"
-        >
-          <VStack gap="16">
-            <Heading size="32" color="red500">
-              Error fetching user data
-            </Heading>
-            <Text size="24" color="red">
-              {error instanceof Error ? error.message : 'Unknown error'}
-            </Text>
-          </VStack>
-        </Box>
-      ),
-    });
-  }
+    }
+  );
 });
 
 app.frame('/cast_stats', (c) => {
