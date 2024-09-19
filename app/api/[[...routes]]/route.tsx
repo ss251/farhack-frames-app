@@ -94,7 +94,7 @@ const app = new Frog<{ State: State }>({
   hub: neynar({ apiKey: process.env.NEYNAR_API_KEY as string }),
   initialState: {},
   ui: { vars },
-  title: 'Stat Frames',
+  title: 'Stat Frame',
 });
 
 // Removed server-side caching since it might interfere with Nanograph API calls
@@ -114,7 +114,7 @@ app.frame('/', (c) => {
       >
         <VStack gap="16" alignHorizontal="center">
           <Heading size="48">
-            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frames
+            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
           </Heading>
           <Text color="text200" size="16" align="center">
             Enter a Farcaster ID or Username to explore detailed stats
@@ -670,7 +670,6 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
 
-  try {
     const response = await fetch(url, { signal: controller.signal });
 
     clearTimeout(timeoutId);
@@ -708,15 +707,6 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
     }
 
     return metrics;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error(`Nanograph API request timed out for username: ${username}`);
-    } else {
-      console.error('Error fetching Nanograph metrics:', error);
-    }
-    return [];
-  }
 }
 
 if (process.env.NODE_ENV === 'development') {
