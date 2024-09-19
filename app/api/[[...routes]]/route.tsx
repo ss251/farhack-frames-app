@@ -181,17 +181,26 @@ app.image('/user_info/user_image', async (c) => {
       ),
     });
   }
+
+  try {
     // Fetch user profile and store fid and username
     const user = await fetchUserProfile(input, state);
 
-    let topChannel = null;
+    // Fetch Nanograph user metrics
     const nanographMetrics = await fetchNanographMetrics(state.username!);
-    if (nanographMetrics.length > 0) {
-      topChannel = nanographMetrics.reduce((prev, current) =>
+
+    // Find the top channel contribution (handle empty array)
+    let topChannel = null;
+    if (nanographMetrics && nanographMetrics.length > 0) {
+      topChannel = nanographMetrics.reduce((prev: any, current: any) =>
         Number(prev.contribution) > Number(current.contribution) ? prev : current
       );
     }
 
+    console.log('Top Channel:', topChannel);
+    console.log('Type of contribution:', typeof topChannel?.contribution);
+
+    // Render the user info image with top channel stats displayed side by side
     return c.res({
       image: (
         <Box
@@ -224,7 +233,7 @@ app.image('/user_info/user_image', async (c) => {
                 <Text size="16">{user.following_count}</Text>
                 <Text size="16" color="text200">Following</Text>
               </Box>
-              {topChannel && (
+              {topChannel ? (
                 <>
                   <Box alignItems="center">
                     <Icon name="award" size="24" color="amber500" />
@@ -239,16 +248,40 @@ app.image('/user_info/user_image', async (c) => {
                     <Text size="16" color="text200">Contribution</Text>
                   </Box>
                 </>
+              ) : (
+                <Box alignItems="center">
+                  <Icon name="info" size="24" color="gray500" />
+                  <Text size="16" color="text200">No Nanograph Data</Text>
+                  <Text size="16" color="text200">Available</Text>
+                </Box>
               )}
             </HStack>
           </VStack>
         </Box>
       ),
-      headers: {
-        'Cache-Control': 'public, max-age=300',
-      },
-    }
-  );
+    });
+  } catch (error) {
+    console.error('Error in Image Handler:', error);
+    return c.res({
+      image: (
+        <Box
+          grow
+          alignHorizontal="center"
+          backgroundColor="background"
+          padding="32"
+        >
+          <VStack gap="16">
+            <Heading size="32" color="red500">
+              Error fetching user data
+            </Heading>
+            <Text size="24" color="red">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </Text>
+          </VStack>
+        </Box>
+      ),
+    });
+  }
 });
 
 app.frame('/cast_stats', (c) => {
@@ -349,13 +382,20 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         ? ((totalInteractions / user.follower_count) * 100).toFixed(2)
         : '0.00';
 
+    // Fetch Nanograph user metrics
+    let nanographMetrics = [];
     let totalContribution = 0;
-    const nanographMetrics = await fetchNanographMetrics(state.username!);
-    if (nanographMetrics.length > 0) {
-      totalContribution = nanographMetrics.reduce(
-        (sum, metric) => sum + (Number(metric.contribution) || 0),
-        0
-      );
+    try {
+      nanographMetrics = await fetchNanographMetrics(state.username!);
+      if (nanographMetrics && nanographMetrics.length > 0) {
+        totalContribution = nanographMetrics.reduce(
+          (sum: number, metric: any) => sum + (Number(metric.contribution) || 0),
+          0
+        );
+      }
+    } catch (nanographError) {
+      console.error('Error fetching Nanograph metrics:', nanographError);
+      // Continue execution even if Nanograph API fails
     }
 
     // Render the combined analytics image with adjusted layout
@@ -412,7 +452,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Text size="24">{engagementRate}%</Text>
                 <Text size="20" color="text200">Engagement Rate</Text>
               </Box>
-              {totalContribution > 0 && (
+              {totalContribution > 0 ? (
                 <Box alignItems="center">
                   <Icon name="trending-up" size="24" color="amber500" />
                   <Text size="24">
@@ -420,15 +460,17 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                   </Text>
                   <Text size="20" color="text200">Total Contribution</Text>
                 </Box>
+              ) : (
+                <Box alignItems="center">
+                  <Icon name="info" size="24" color="gray500" />
+                  <Text size="20" color="text200">No Nanograph Data</Text>
+                </Box>
               )}
             </HStack>
 
           </VStack>
         </Box>
       ),
-      headers: {
-        'Cache-Control': 'public, max-age=300',
-      },
     });
   } catch (error) {
     console.error('Error in cast stats image generation:', error);
@@ -583,9 +625,6 @@ app.image('/moxie_stat/moxie_image', async (c) => {
           </VStack>
         </Box>
       ),
-      headers: {
-        'Cache-Control': 'public, max-age=300',
-      },
     });
   } catch (error) {
     console.error('Error in Moxie Image Handler:', error);
@@ -641,54 +680,19 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
 // Utility function to fetch Nanograph metrics (updated to handle errors gracefully)
 async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
-  const url = `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`;
-  console.log('Fetching Nanograph metrics:', { username, url, currentDate });
+  console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+  const response = await fetch(
+    `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
+  );
 
-    const response = await fetch(url, { signal: controller.signal });
+  if (!response.ok) {
+    console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
+    return []; // Return an empty array for non-OK responses
+  }
 
-    clearTimeout(timeoutId);
-
-    console.log('Nanograph API response:', {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
-    });
-
-    if (response.status === 404) {
-      console.log(`Nanograph API returned 404 for username: ${username}. Proceeding without Nanograph data.`);
-      return [];
-    }
-
-    if (!response.ok) {
-      console.error(`Nanograph API returned status ${response.status} for username: ${username}`);
-      return [];
-    }
-
-    if (!response) {
-      console.error(`Nanograph API returned no response for username: ${username}`);
-      return [];
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error(`Unexpected content type from Nanograph API: ${contentType}`);
-      const text = await response.text();
-      console.error('Response body:', text);
-      return [];
-    }
-
-    const metrics = await response.json();
-    console.log('Nanograph API metrics:', metrics);
-
-    if (!Array.isArray(metrics)) {
-      console.error(`Unexpected response format from Nanograph API for username: ${username}`);
-      return [];
-    }
-
-    return metrics;
+  const metrics = await response.json();
+  return metrics;
 }
 
 if (process.env.NODE_ENV === 'development') {
