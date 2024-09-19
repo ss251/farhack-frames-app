@@ -114,7 +114,7 @@ app.frame('/', (c) => {
       >
         <VStack gap="16" alignHorizontal="center">
           <Heading size="48">
-            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
+            <Icon name="bar-chart" size="48" color="teal500" /> Stat Frames
           </Heading>
           <Text color="text200" size="16" align="center">
             Enter a Farcaster ID or Username to explore detailed stats
