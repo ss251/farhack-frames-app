@@ -94,7 +94,7 @@ const app = new Frog<{ State: State }>({
   hub: neynar({ apiKey: process.env.NEYNAR_API_KEY as string }),
   initialState: {},
   ui: { vars },
-  title: 'Stat Frame',
+  title: 'Stat Frames',
 });
 
 // Removed server-side caching since it might interfere with Nanograph API calls
