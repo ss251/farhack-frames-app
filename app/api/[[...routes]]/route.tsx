@@ -8,6 +8,7 @@ import { devtools } from 'frog/dev';
 import { serveStatic } from 'frog/serve-static';
 import { createSystem } from 'frog/ui';
 import { format } from 'date-fns';
+import NodeCache from 'node-cache';
 
 Lum0x.init(process.env.LUM0X_API_KEY as string);
 
@@ -71,8 +72,8 @@ interface Cast {
 // Update the State type
 type State = {
   fid?: string;
-  username?: string;
-  input?: string;
+  username?: string; // Add username to the state
+  input?: string; // Store the user input
 };
 
 const {
@@ -97,7 +98,25 @@ const app = new Frog<{ State: State }>({
   title: 'Stat Frame',
 });
 
-// Removed server-side caching since it might interfere with Nanograph API calls
+// Initialize cache
+const nodeCache = new NodeCache({ stdTTL: 300 });
+
+// Cache utility function with TTL support
+async function getCachedData<T>(
+  key: string,
+  fetchFunction: () => Promise<T>,
+  ttl?: number // Optional TTL in seconds
+): Promise<T> {
+  const cachedData = nodeCache.get<T>(key);
+
+  if (cachedData) {
+    return cachedData;
+  } else {
+    const data = await fetchFunction();
+    nodeCache.set(key, data, ttl || 300); // Use TTL if provided
+    return data;
+  }
+}
 
 app.frame('/', (c) => {
   const { buttonValue, inputText } = c;
@@ -116,7 +135,7 @@ app.frame('/', (c) => {
           <Heading size="48">
             <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
           </Heading>
-          <Text color="text200" size="16" align="center">
+          <Text color="text200" size="16" align='center'>
             Enter a Farcaster ID or Username to explore detailed stats
           </Text>
         </VStack>
@@ -208,7 +227,7 @@ app.image('/user_info/user_image', async (c) => {
           alignHorizontal="center"
           alignVertical="center"
           backgroundColor="background"
-          padding="16"
+          padding="16" // Reduced padding to allow more content to fit
         >
           <VStack gap="16" alignHorizontal="center">
             <Image
@@ -259,6 +278,9 @@ app.image('/user_info/user_image', async (c) => {
           </VStack>
         </Box>
       ),
+      headers: {
+        'Cache-Control': 'public, max-age=300',
+      },
     });
   } catch (error) {
     console.error('Error in Image Handler:', error);
@@ -283,6 +305,8 @@ app.image('/user_info/user_image', async (c) => {
     });
   }
 });
+
+// Similar changes should be made in other frames, such as '/cast_stats' and '/moxie_stat'
 
 app.frame('/cast_stats', (c) => {
   const { deriveState } = c;
@@ -344,17 +368,18 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Fetch casts without caching
-    const castsRes = await Lum0x.farcasterCast.getCastsByFid({
-      fid: Number(fid),
-      limit: 100,
-    });
+    const casts = await getCachedData(`casts_fid_${fid}`, async () => {
+      const castsRes = await Lum0x.farcasterCast.getCastsByFid({
+        fid: Number(fid),
+        limit: 100,
+      });
 
-    if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
-      throw new Error('Invalid casts data received');
-    }
+      if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
+        throw new Error('Invalid casts data received');
+      }
 
-    const casts = castsRes.result.casts;
+      return castsRes.result.casts;
+    }, 300); // Cache for 5 minutes
 
     const recentCasts = casts.filter(
       (cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo
@@ -383,19 +408,15 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         : '0.00';
 
     // Fetch Nanograph user metrics
-    let nanographMetrics = [];
+    const nanographMetrics = await fetchNanographMetrics(state.username!);
+
+    // Calculate total contribution from Nanograph metrics
     let totalContribution = 0;
-    try {
-      nanographMetrics = await fetchNanographMetrics(state.username!);
-      if (nanographMetrics && nanographMetrics.length > 0) {
-        totalContribution = nanographMetrics.reduce(
-          (sum: number, metric: any) => sum + (Number(metric.contribution) || 0),
-          0
-        );
-      }
-    } catch (nanographError) {
-      console.error('Error fetching Nanograph metrics:', nanographError);
-      // Continue execution even if Nanograph API fails
+    if (nanographMetrics && nanographMetrics.length > 0) {
+      totalContribution = nanographMetrics.reduce(
+        (sum: number, metric: any) => sum + (metric.contribution || 0),
+        0
+      );
     }
 
     // Render the combined analytics image with adjusted layout
@@ -456,7 +477,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
                 <Box alignItems="center">
                   <Icon name="trending-up" size="24" color="amber500" />
                   <Text size="24">
-                    {totalContribution.toLocaleString()}
+                    {Number(totalContribution).toLocaleString()}
                   </Text>
                   <Text size="20" color="text200">Total Contribution</Text>
                 </Box>
@@ -471,14 +492,17 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
           </VStack>
         </Box>
       ),
+      headers: {
+        'Cache-Control': 'public, max-age=300',
+      },
     });
   } catch (error) {
-    console.error('Error in cast stats image generation:', error);
+    console.error('Error fetching cast data:', error);
     return c.res({
       image: (
         <Box grow alignHorizontal="center" backgroundColor="background" padding="32">
           <VStack gap="16">
-            <Heading size="48" color="red500">Error fetching data</Heading>
+            <Heading size="48" color="red500">Error fetching cast data</Heading>
             <Text size="32" color="red">{error instanceof Error ? error.message : 'Unknown error'}</Text>
           </VStack>
         </Box>
@@ -563,7 +587,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
 
     const moxieStat = moxieStatArray[0];
 
-    // Render the Moxie stats image
+    // Updated image component with icons and improved styling
     return c.res({
       image: (
         <Box
@@ -625,6 +649,9 @@ app.image('/moxie_stat/moxie_image', async (c) => {
           </VStack>
         </Box>
       ),
+      headers: {
+        'Cache-Control': 'public, max-age=300',
+      },
     });
   } catch (error) {
     console.error('Error in Moxie Image Handler:', error);
@@ -653,17 +680,24 @@ app.image('/moxie_stat/moxie_image', async (c) => {
 // Utility function to fetch user profile and store fid and username
 async function fetchUserProfile(input: string, state: State): Promise<User> {
   let user: User | undefined = undefined;
+  let cacheKey = '';
 
   if (/^\d+$/.test(input)) {
     // Input is numeric, treat as fid
     const fid = input;
-    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-    user = userRes.users[0];
+    cacheKey = `user_fid_${fid}`;
+    user = await getCachedData(cacheKey, async () => {
+      const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+      return userRes.users[0];
+    }, 300); // Cache for 5 minutes
   } else {
     // Input is non-numeric, treat as username
     const username = input;
-    const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
-    user = userRes.user;
+    cacheKey = `user_username_${username}`;
+    user = await getCachedData(cacheKey, async () => {
+      const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
+      return userRes.user;
+    }, 300); // Cache for 5 minutes
   }
 
   if (!user) {
@@ -677,7 +711,7 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
   return user;
 }
 
-// Utility function to fetch Nanograph metrics (updated to handle errors gracefully)
+// Utility function to fetch Nanograph metrics
 async function fetchNanographMetrics(username: string): Promise<any[]> {
   const currentDate = format(new Date(), 'yyyy-MM-dd');
   console.log('Fetching Nanograph metrics for username:', username, 'date:', currentDate);
@@ -686,18 +720,26 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
     `https://api.nanograph.xyz/farcaster/user/${encodeURIComponent(username)}/metrics?timeframe=monthly&date=${currentDate}`
   );
 
-  if (!response.ok) {
-    console.log(`Nanograph API returned status ${response.status} for username: ${username}`);
-    return []; // Return an empty array for non-OK responses
+  if (response.status === 404) {
+    // No data available for this user
+    console.log(`Nanograph metrics not found for username: ${username}`);
+    return []; // Return an empty array or handle accordingly
   }
 
-  const metrics = await response.json();
+  const responseText = await response.text();
+  console.log('Nanograph API response:', responseText);
+
+  if (!response.ok) {
+    throw new Error(`Nanograph API Error: ${response.status} - ${responseText}`);
+  }
+
+  const metrics = JSON.parse(responseText);
   return metrics;
 }
 
 if (process.env.NODE_ENV === 'development') {
-  devtools(app, { serveStatic });
+  devtools(app, { serveStatic })
 }
 
-export const GET = handle(app);
-export const POST = handle(app);
+export const GET = handle(app)
+export const POST = handle(app)
