@@ -8,7 +8,6 @@ import { devtools } from 'frog/dev';
 import { serveStatic } from 'frog/serve-static';
 import { createSystem } from 'frog/ui';
 import { format } from 'date-fns';
-import NodeCache from 'node-cache';
 
 Lum0x.init(process.env.LUM0X_API_KEY as string);
 
@@ -98,26 +97,6 @@ const app = new Frog<{ State: State }>({
   title: 'Stat Frame',
 });
 
-// Initialize cache
-const nodeCache = new NodeCache({ stdTTL: 300 });
-
-// Cache utility function with TTL support
-async function getCachedData<T>(
-  key: string,
-  fetchFunction: () => Promise<T>,
-  ttl?: number // Optional TTL in seconds
-): Promise<T> {
-  const cachedData = nodeCache.get<T>(key);
-
-  if (cachedData) {
-    return cachedData;
-  } else {
-    const data = await fetchFunction();
-    nodeCache.set(key, data, ttl || 300); // Use TTL if provided
-    return data;
-  }
-}
-
 app.frame('/', (c) => {
   const { buttonValue, inputText } = c;
   console.log('Main frame:', { buttonValue, inputText });
@@ -136,7 +115,7 @@ app.frame('/', (c) => {
             <Icon name="bar-chart" size="48" color="teal500" /> Stat Frame
           </Heading>
           <Text color="text200" size="16" align='center'>
-            Enter a Farcaster ID to explore detailed stats
+            Enter a Farcaster ID or Username to explore detailed stats
           </Text>
         </VStack>
       </Box>
@@ -204,6 +183,7 @@ app.image('/user_info/user_image', async (c) => {
   try {
     // Fetch user profile and store fid and username
     const user = await fetchUserProfile(input, state);
+    console.log('User in Image Handler:', user);
 
     // Fetch Nanograph user metrics
     const nanographMetrics = await fetchNanographMetrics(state.username!);
@@ -279,7 +259,7 @@ app.image('/user_info/user_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'public, max-age=20',
       },
     });
   } catch (error) {
@@ -368,19 +348,17 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const casts = await getCachedData(`casts_fid_${fid}`, async () => {
-      const castsRes = await Lum0x.farcasterCast.getCastsByFid({
-        fid: Number(fid),
-        limit: 100,
-      });
+    // Replace cached data retrieval with direct API calls
+    const castsRes = await Lum0x.farcasterCast.getCastsByFid({
+      fid: Number(fid),
+      limit: 100,
+    });
 
-      if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
-        throw new Error('Invalid casts data received');
-      }
+    if (!castsRes.result || !Array.isArray(castsRes.result.casts)) {
+      throw new Error('Invalid casts data received');
+    }
 
-      return castsRes.result.casts;
-    }, 300); // Cache for 5 minutes
-
+    const casts = castsRes.result.casts;
     const recentCasts = casts.filter(
       (cast: Cast) => new Date(cast.timestamp) >= thirtyDaysAgo
     );
@@ -493,7 +471,7 @@ app.image('/cast_stats/cast_stats_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'public, max-age=20',
       },
     });
   } catch (error) {
@@ -650,7 +628,7 @@ app.image('/moxie_stat/moxie_image', async (c) => {
         </Box>
       ),
       headers: {
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'public, max-age=20',
       },
     });
   } catch (error) {
@@ -680,24 +658,24 @@ app.image('/moxie_stat/moxie_image', async (c) => {
 // Utility function to fetch user profile and store fid and username
 async function fetchUserProfile(input: string, state: State): Promise<User> {
   let user: User | undefined = undefined;
-  let cacheKey = '';
 
   if (/^\d+$/.test(input)) {
     // Input is numeric, treat as fid
     const fid = input;
-    cacheKey = `user_fid_${fid}`;
-    user = await getCachedData(cacheKey, async () => {
-      const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
-      return userRes.users[0];
-    }, 300); // Cache for 5 minutes
+    const userRes = await Lum0x.farcasterUser.getUserByFids({ fids: fid });
+    user = userRes.result.users[0];
   } else {
     // Input is non-numeric, treat as username
     const username = input;
-    cacheKey = `user_username_${username}`;
-    user = await getCachedData(cacheKey, async () => {
-      const userRes = await Lum0x.farcasterUser.getUserByUsername({ username });
-      return userRes.user;
-    }, 300); // Cache for 5 minutes
+    const userRes = await Lum0x.farcasterUser.searchUser({
+      q: username,
+      limit: 1,
+    });
+    if (userRes.result && userRes.result.users && userRes.result.users.length > 0) {
+      user = userRes.result.users[0];
+    } else {
+      throw new Error('User not found');
+    }
   }
 
   if (!user) {
@@ -708,6 +686,7 @@ async function fetchUserProfile(input: string, state: State): Promise<User> {
   state.fid = user.fid.toString();
   state.username = user.username;
 
+  console.log('Fetched User in Image Handler:', user);
   return user;
 }
 
@@ -723,7 +702,7 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
   if (response.status === 404) {
     // No data available for this user
     console.log(`Nanograph metrics not found for username: ${username}`);
-    return []; // Return an empty array or handle accordingly
+    return [];
   }
 
   const responseText = await response.text();
