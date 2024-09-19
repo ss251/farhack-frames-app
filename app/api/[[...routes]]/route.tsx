@@ -690,6 +690,11 @@ async function fetchNanographMetrics(username: string): Promise<any[]> {
       return [];
     }
 
+    if (!response) {
+      console.error(`Nanograph API returned no response for username: ${username}`);
+      return [];
+    }
+
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       console.error(`Unexpected content type from Nanograph API: ${contentType}`);
